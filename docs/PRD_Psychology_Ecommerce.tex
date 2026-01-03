@@ -1,0 +1,425 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning}
+
+\geometry{margin=1in}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{PRD: Psychology-Based E-commerce}
+\lhead{Behavioral Commerce Platform}
+\rfoot{Page \thepage}
+
+\definecolor{psychpurple}{RGB}{155,89,182}
+\definecolor{behaviorblue}{RGB}{52,152,219}
+\definecolor{socialgreen}{RGB}{46,204,113}
+\definecolor{cognitiveorange}{RGB}{230,126,34}
+\definecolor{darktext}{RGB}{50,50,50}
+
+\newtcolorbox{insightbox}{
+    colback=psychpurple!10,
+    colframe=psychpurple,
+    title=Psychology Insight,
+    fonttitle=\bfseries
+}
+
+\newtcolorbox{featurebox}[1]{
+    colback=behaviorblue!5,
+    colframe=behaviorblue,
+    title=#1,
+    fonttitle=\bfseries
+}
+
+\newtcolorbox{ethicsbox}{
+    colback=socialgreen!10,
+    colframe=socialgreen,
+    title=Ethical Consideration,
+    fonttitle=\bfseries
+}
+
+\title{
+    {\Large\bfseries Product Requirements Document}\\[0.5em]
+    {\large Psychology-Based E-Commerce Features}\\[1em]
+    {\normalsize Behavioral Commerce Platform}
+}
+\author{Psychology Agent $\cdot$ Product Manager Agent}
+\date{January 2026 \\ Version 1.0}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Executive Summary}
+%==============================================================================
+
+This PRD defines psychology-based features for an e-commerce platform, translating behavioral, cognitive, social, and consumer psychology research into practical product enhancements.
+
+\begin{insightbox}
+\textbf{Core Thesis:} By applying evidence-based psychological principles to e-commerce design, we can reduce decision fatigue, increase user satisfaction, and drive sustainable conversion improvements---ethically.
+\end{insightbox}
+
+\subsection{Research Foundation}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Psychology Domain} & \textbf{Key Principle} & \textbf{E-commerce Application} \\
+\midrule
+Behavioral Psychology & Operant Conditioning & Reward systems, habit formation \\
+Cognitive Psychology & Mental Models & Intuitive navigation, search \\
+Social Psychology & Social Proof (Cialdini) & Reviews, ratings, popularity \\
+Consumer Psychology & Price Anchoring & Discount presentation \\
+UX Psychology & Peak-End Rule & Checkout optimization \\
+\bottomrule
+\end{tabular}
+\caption{Psychology research mapped to e-commerce features}
+\end{table}
+
+%==============================================================================
+\section{Problem Statement}
+%==============================================================================
+
+\subsection{User Challenges}
+
+Users of e-commerce platforms experience:
+
+\begin{enumerate}
+    \item \textbf{Decision Fatigue}: Overwhelming product choices lead to abandonment
+    \item \textbf{Trust Deficit}: Uncertainty about product quality without physical inspection
+    \item \textbf{Friction in Repeat Purchases}: Difficulty quickly reordering familiar items
+    \item \textbf{Price Confusion}: Inability to assess value and savings
+    \item \textbf{Navigation Complexity}: Difficulty finding desired products efficiently
+\end{enumerate}
+
+\subsection{Business Impact}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Challenge} & \textbf{Estimated Impact} \\
+\midrule
+Decision fatigue abandonment & -15\% conversion \\
+Low trust/no reviews & -25\% category conversion \\
+Repeat purchase friction & -30\% retention \\
+Poor search experience & -20\% engagement \\
+\bottomrule
+\end{tabular}
+\caption{Business impact of user challenges}
+\end{table}
+
+%==============================================================================
+\section{User Personas}
+%==============================================================================
+
+\begin{featurebox}{Persona 1: Bargain Hunter Beth}
+\textbf{Demographics:} 28-45, price-conscious, frequent shopper\\
+\textbf{Psychology Profile:} High sensitivity to price anchoring, responds to scarcity\\
+\textbf{Behaviors:}
+\begin{itemize}[noitemsep]
+    \item Always checks for discounts before purchasing
+    \item Compares prices across multiple platforms
+    \item Responds strongly to ``\% off'' messaging
+\end{itemize}
+\textbf{Needs:} Clear savings visualization, deal alerts, price history
+\end{featurebox}
+
+\begin{featurebox}{Persona 2: Influence-Driven Ian}
+\textbf{Demographics:} 22-35, social media active, trend-aware\\
+\textbf{Psychology Profile:} High social proof sensitivity, conformity-oriented\\
+\textbf{Behaviors:}
+\begin{itemize}[noitemsep]
+    \item Reads reviews extensively before purchasing
+    \item Checks ``bestseller'' and ``trending'' tags
+    \item Influenced by ``X people bought this'' indicators
+\end{itemize}
+\textbf{Needs:} Rich reviews, social validation, popularity indicators
+\end{featurebox}
+
+\begin{featurebox}{Persona 3: Habitual Shopper Helen}
+\textbf{Demographics:} 35-55, busy professional, values convenience\\
+\textbf{Psychology Profile:} Habit-driven, operant conditioning responsive\\
+\textbf{Behaviors:}
+\begin{itemize}[noitemsep]
+    \item Buys same products repeatedly (groceries, household)
+    \item Appreciates loyalty rewards
+    \item Values quick reorder functionality
+\end{itemize}
+\textbf{Needs:} One-click reorder, subscription options, loyalty program
+\end{featurebox}
+
+\begin{featurebox}{Persona 4: Occasional Buyer Owen}
+\textbf{Demographics:} 40-60, goal-oriented, low patience for browsing\\
+\textbf{Psychology Profile:} Cognitive efficiency-focused, mental model reliant\\
+\textbf{Behaviors:}
+\begin{itemize}[noitemsep]
+    \item Searches for specific items, doesn't browse
+    \item Expects intuitive category structure
+    \item Abandons if search fails quickly
+\end{itemize}
+\textbf{Needs:} Powerful search, clear navigation, smart suggestions
+\end{featurebox}
+
+%==============================================================================
+\section{Feature Specifications}
+%==============================================================================
+
+\subsection{Feature 1: Smart Reviews \& Social Proof System}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Details} \\
+\midrule
+Psychology Principle & Social Proof (Cialdini, 1984) \\
+Target Persona & Influence-Driven Ian \\
+Priority & P0 (MVP) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Requirements:}
+\begin{itemize}
+    \item Display aggregate star rating with review count
+    \item Show ``X people bought in last 24 hours'' indicator
+    \item Highlight ``Verified Purchase'' badges
+    \item Surface most helpful positive and critical reviews
+    \item Display reviewer similarity (``Shoppers like you said...'')
+\end{itemize}
+
+\textbf{Success Metrics:}
+\begin{itemize}
+    \item Conversion rate on reviewed vs. non-reviewed products
+    \item Time spent on product pages with reviews
+    \item Review helpfulness voting engagement
+\end{itemize}
+
+\subsection{Feature 2: Quick Reorder \& Habit Formation}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Details} \\
+\midrule
+Psychology Principle & Operant Conditioning, Habit Formation \\
+Target Persona & Habitual Shopper Helen \\
+Priority & P0 (MVP) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Requirements:}
+\begin{itemize}
+    \item ``Buy Again'' section on homepage for returning users
+    \item One-click reorder from order history
+    \item Predictive reorder prompts based on purchase frequency
+    \item ``Subscribe \& Save'' option with discount incentive
+    \item Loyalty points for repeat purchases (reward schedule)
+\end{itemize}
+
+\textbf{Success Metrics:}
+\begin{itemize}
+    \item Repeat purchase rate
+    \item Time between repeat orders
+    \item Subscription conversion rate
+    \item Loyalty program engagement
+\end{itemize}
+
+\subsection{Feature 3: Intelligent Search \& Navigation}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Details} \\
+\midrule
+Psychology Principle & Mental Models, Cognitive Processing \\
+Target Persona & Occasional Buyer Owen \\
+Priority & P0 (MVP) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Requirements:}
+\begin{itemize}
+    \item Autocomplete with product images and prices
+    \item Typo tolerance and synonym understanding
+    \item Category-aware search results
+    \item Personalized suggestions based on history
+    \item Clear breadcrumb navigation
+\end{itemize}
+
+\textbf{Success Metrics:}
+\begin{itemize}
+    \item Search success rate (search $\rightarrow$ purchase)
+    \item Zero-result search rate
+    \item Time to find product
+    \item Search refinement rate
+\end{itemize}
+
+\subsection{Feature 4: Savings Visualization (Price Anchoring)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Details} \\
+\midrule
+Psychology Principle & Price Anchoring, Loss Aversion \\
+Target Persona & Bargain Hunter Beth \\
+Priority & P1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Requirements:}
+\begin{itemize}
+    \item Display original price with strikethrough
+    \item Show percentage and absolute savings
+    \item ``Lowest price in X days'' indicator
+    \item Price drop alerts for wishlisted items
+    \item Cart-level savings summary
+\end{itemize}
+
+\textbf{Success Metrics:}
+\begin{itemize}
+    \item Conversion on discounted vs. full-price items
+    \item Wishlist-to-purchase conversion
+    \item Alert engagement rate
+\end{itemize}
+
+\subsection{Feature 5: Urgency \& Scarcity Indicators}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Details} \\
+\midrule
+Psychology Principle & Scarcity Principle, FOMO \\
+Target Persona & All personas \\
+Priority & P1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Requirements:}
+\begin{itemize}
+    \item ``Only X left in stock'' indicator (when $<$ 10)
+    \item Countdown timer for time-limited sales
+    \item ``Sale ends in X hours'' messaging
+    \item ``X people viewing this now'' for high-demand items
+\end{itemize}
+
+\begin{ethicsbox}
+\textbf{Ethical Guardrails:}
+\begin{itemize}
+    \item Stock indicators must reflect actual inventory
+    \item Timers must be genuine (no fake urgency)
+    \item ``Viewing now'' must be real-time accurate
+    \item No artificial scarcity manipulation
+\end{itemize}
+\end{ethicsbox}
+
+\textbf{Success Metrics:}
+\begin{itemize}
+    \item Conversion lift on scarcity-indicated products
+    \item Time to purchase decision
+    \item Cart abandonment on low-stock items
+\end{itemize}
+
+%==============================================================================
+\section{MVP Definition}
+%==============================================================================
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}clll@{}}
+\toprule
+\textbf{Priority} & \textbf{Feature} & \textbf{Principle} & \textbf{Rationale} \\
+\midrule
+MVP-1 & Smart Reviews & Social Proof & Highest trust impact \\
+MVP-2 & Quick Reorder & Habit Formation & Retention driver \\
+MVP-3 & Intelligent Search & Cognitive Processing & Foundational UX \\
+\midrule
+Phase 2 & Savings Visualization & Price Anchoring & Conversion boost \\
+Phase 2 & Urgency Indicators & Scarcity & Conversion boost \\
+\bottomrule
+\end{tabular}
+\caption{MVP and phased feature rollout}
+\end{table}
+
+%==============================================================================
+\section{Ethical Framework}
+%==============================================================================
+
+\subsection{Guiding Principles}
+
+\begin{enumerate}
+    \item \textbf{Transparency}: All psychological techniques must be honest
+    \item \textbf{User Autonomy}: Features should aid, not manipulate, decisions
+    \item \textbf{No Dark Patterns}: Reject deceptive design practices
+    \item \textbf{Data Privacy}: Respect user data in personalization
+    \item \textbf{Vulnerable Users}: No exploitation of cognitive biases
+\end{enumerate}
+
+\subsection{Prohibited Practices}
+
+\begin{itemize}
+    \item Fake reviews or inflated ratings
+    \item Artificial stock scarcity
+    \item Deceptive countdown timers
+    \item Manipulated ``people viewing'' counts
+    \item Hidden fees revealed late in checkout
+    \item Confirmshaming opt-out language
+\end{itemize}
+
+%==============================================================================
+\section{Success Metrics}
+%==============================================================================
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Metric} & \textbf{Current} & \textbf{Target} & \textbf{Feature} \\
+\midrule
+Conversion rate & 2.5\% & 3.0\% (+20\%) & All \\
+Repeat purchase rate & 25\% & 35\% (+40\%) & Quick Reorder \\
+Search success rate & 60\% & 80\% (+33\%) & Intelligent Search \\
+Review engagement & 15\% & 30\% (+100\%) & Smart Reviews \\
+Cart abandonment & 70\% & 60\% (-14\%) & Urgency/Savings \\
+\bottomrule
+\end{tabular}
+\caption{Target success metrics by feature}
+\end{table}
+
+%==============================================================================
+\section{References}
+%==============================================================================
+
+\begin{enumerate}
+    \item Cialdini, R.B. (1984). \textit{Influence: The Psychology of Persuasion}. Harper Business.
+    \item Fogg, B.J. (2009). A behavior model for persuasive design. \textit{Proceedings of Persuasive Technology}.
+    \item Kahneman, D. \& Tversky, A. (1979). Prospect Theory: An Analysis of Decision under Risk. \textit{Econometrica}.
+    \item Ariely, D. (2008). \textit{Predictably Irrational}. HarperCollins.
+\end{enumerate}
+
+\end{document}

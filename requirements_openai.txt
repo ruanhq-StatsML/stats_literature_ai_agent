@@ -1,0 +1,13 @@
+# Core dependencies
+openai
+duckduckgo-search
+
+# LangGraph and LangChain dependencies
+langgraph
+langchain
+langchain-openai
+langchain-core
+langchain-community
+
+# Optional: Better search for research queries
+tavily-python
