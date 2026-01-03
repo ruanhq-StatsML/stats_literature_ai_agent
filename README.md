@@ -106,7 +106,7 @@ stats_agent/
 │   ├── AB_Testing_Methodology.tex
 │   └── Psychology_Ecommerce_Pipeline2.pptx
 │
-├── slides_templates/                # Presentation templates
+├── slides_template/                # Presentation templates
 │   ├── README.md
 │   ├── google_slides_templates.md
 │   ├── slidesgo_templates.md

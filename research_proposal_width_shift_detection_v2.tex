@@ -1,0 +1,778 @@
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{natbib}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows,shapes,positioning}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{example}[theorem]{Example}
+
+% Custom commands
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\cC}{\mathcal{C}}
+\newcommand{\cD}{\mathcal{D}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\cY}{\mathcal{Y}}
+\newcommand{\cP}{\mathcal{P}}
+\newcommand{\cQ}{\mathcal{Q}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\wh}{\widehat}
+\newcommand{\wt}{\widetilde}
+\newcommand{\argmin}{\mathop{\mathrm{argmin}}}
+\newcommand{\argmax}{\mathop{\mathrm{argmax}}}
+
+\title{\textbf{Research Proposal:} \\
+\Large Prediction Interval Width as a Distribution Shift Detector: \\
+A General Framework Beyond Conformal Inference}
+
+\author{
+Research Proposal for Statistical Machine Learning \\[1em]
+\textit{Prepared using stats\_literature\_ai\_agent}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We propose a general framework for detecting distribution shift using prediction interval widths as test statistics. Unlike existing approaches that rely specifically on conformal prediction, our framework accommodates \textit{any} method for constructing prediction intervals---including quantile regression, bootstrap methods, Bayesian credible intervals, and heteroscedastic models. The key insight is that prediction interval width reflects local uncertainty, and systematic changes in the width distribution indicate distributional shift affecting predictive reliability. We develop detailed theoretical foundations including exact Type I error control via permutation tests, power analysis under local alternatives, and asymptotic distributions for the width-ratio statistic. We present comprehensive algorithms for batch detection, online monitoring, and localized shift identification. This generalized approach offers practitioners flexibility in choosing uncertainty quantification methods while maintaining rigorous statistical guarantees for shift detection.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+%==============================================================================
+
+\subsection{Motivation}
+
+Distribution shift detection is critical for maintaining reliable machine learning systems in deployment. We propose using \textbf{prediction interval width} as a natural test statistic for shift detection. The key insight:
+
+\begin{tcolorbox}[colback=blue!5,colframe=blue!40!black,title=Central Idea]
+\textbf{Under distribution shift, prediction intervals must either:}
+\begin{enumerate}
+    \item \textbf{Widen} to maintain nominal coverage, or
+    \item \textbf{Lose coverage} if width remains constant
+\end{enumerate}
+Either phenomenon is detectable and indicates shift affecting predictive reliability.
+\end{tcolorbox}
+
+\subsection{Beyond Conformal Inference}
+
+While conformal prediction provides elegant finite-sample guarantees, our framework is \textbf{not restricted to conformal methods}. Any prediction interval construction can be used:
+
+\begin{table}[h]
+\centering
+\caption{Prediction Interval Methods Compatible with Our Framework}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Interval Construction} & \textbf{Key Property} \\
+\midrule
+Quantile Regression & $[\wh{q}_{\alpha/2}(x), \wh{q}_{1-\alpha/2}(x)]$ & Direct conditional quantiles \\
+Bootstrap & $[\wh{y} - q^*_{1-\alpha/2}, \wh{y} + q^*_{1-\alpha/2}]$ & Resampling-based \\
+Bayesian & Posterior predictive credible interval & Incorporates prior \\
+Heteroscedastic & $\wh{\mu}(x) \pm z_{1-\alpha/2}\wh{\sigma}(x)$ & Models conditional variance \\
+Conformal & $\{y: s(x,y) \leq \wh{q}_{1-\alpha}\}$ & Distribution-free \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\section{Problem Formulation}
+%==============================================================================
+
+\subsection{Setup and Notation}
+
+Let $(X, Y) \in \cX \times \cY$ where $\cX \subseteq \R^d$ and $\cY \subseteq \R$. We consider:
+
+\begin{itemize}
+    \item \textbf{Training distribution:} $(X, Y) \sim \cP$
+    \item \textbf{Test distribution:} $(X, Y) \sim \cQ$ (potentially different)
+    \item \textbf{Prediction interval:} $\cC_\alpha(x) = [L_\alpha(x), U_\alpha(x)]$ at level $1-\alpha$
+    \item \textbf{Interval width:} $W(x) = U_\alpha(x) - L_\alpha(x)$
+\end{itemize}
+
+\begin{definition}[Width Distribution]
+The width distribution under distribution $\cP$ is:
+\begin{equation}
+F_W^{(\cP)}(w) = \Prob_{X \sim \cP_X}(W(X) \leq w)
+\end{equation}
+\end{definition}
+
+\subsection{Hypothesis Testing Framework}
+
+We formulate shift detection as:
+\begin{align}
+H_0&: F_W^{(\cQ)} = F_W^{(\cP)} \quad \text{(no shift in width distribution)} \\
+H_1&: F_W^{(\cQ)} \neq F_W^{(\cP)} \quad \text{(width distribution has shifted)}
+\end{align}
+
+\begin{remark}
+This is weaker than testing $\cQ = \cP$ directly. We specifically test whether the shift affects predictive uncertainty, which is often the quantity of practical interest.
+\end{remark}
+
+%==============================================================================
+\section{The Width-Ratio Test Statistic}
+%==============================================================================
+
+\subsection{Definition and Intuition}
+
+\begin{definition}[Width-Ratio Statistic]
+Given calibration widths $\{W_i^{\text{cal}}\}_{i=1}^n$ and test widths $\{W_j^{\text{test}}\}_{j=1}^m$:
+\begin{equation}
+T_{\text{WR}} = \frac{\bar{W}^{\text{test}}}{\bar{W}^{\text{cal}}} = \frac{\frac{1}{m}\sum_{j=1}^m W_j^{\text{test}}}{\frac{1}{n}\sum_{i=1}^n W_i^{\text{cal}}}
+\end{equation}
+\end{definition}
+
+\textbf{Intuition:}
+\begin{itemize}
+    \item Under $H_0$: $T_{\text{WR}} \approx 1$ (widths come from same distribution)
+    \item Under $H_1$: $T_{\text{WR}} \neq 1$ (typically $>1$ if test region has higher uncertainty)
+\end{itemize}
+
+\subsection{Properties Under the Null Hypothesis}
+
+\begin{lemma}[Expectation Under $H_0$]
+Under $H_0$, assuming $\E[W] = \mu_W < \infty$:
+\begin{equation}
+\E[T_{\text{WR}}] = \E\left[\frac{\bar{W}^{\text{test}}}{\bar{W}^{\text{cal}}}\right] \approx 1 + \frac{\Var(W)}{n\mu_W^2} + O(n^{-2})
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Using the delta method for ratios. Let $\bar{W}^{\text{cal}} = \mu_W + \epsilon_n$ and $\bar{W}^{\text{test}} = \mu_W + \epsilon_m$ where $\epsilon_n, \epsilon_m$ are mean-zero with variances $\sigma_W^2/n$ and $\sigma_W^2/m$ respectively.
+\begin{align}
+T_{\text{WR}} &= \frac{\mu_W + \epsilon_m}{\mu_W + \epsilon_n} = \frac{1 + \epsilon_m/\mu_W}{1 + \epsilon_n/\mu_W} \\
+&\approx \left(1 + \frac{\epsilon_m}{\mu_W}\right)\left(1 - \frac{\epsilon_n}{\mu_W} + \frac{\epsilon_n^2}{\mu_W^2}\right) \\
+&= 1 + \frac{\epsilon_m - \epsilon_n}{\mu_W} + \frac{\epsilon_n^2}{\mu_W^2} + O_p(n^{-3/2})
+\end{align}
+Taking expectations: $\E[\epsilon_m] = \E[\epsilon_n] = 0$ and $\E[\epsilon_n^2] = \sigma_W^2/n$.
+\end{proof}
+
+\begin{theorem}[Asymptotic Distribution Under $H_0$]
+\label{thm:asymptotic_null}
+Under $H_0$, assume $\E[W^4] < \infty$. As $n, m \to \infty$ with $m/(n+m) \to \lambda \in (0,1)$:
+\begin{equation}
+\sqrt{\frac{nm}{n+m}}(T_{\text{WR}} - 1) \xrightarrow{d} \mathcal{N}\left(0, \frac{\sigma_W^2}{\mu_W^2}\right)
+\end{equation}
+where $\sigma_W^2 = \Var(W)$ and $\mu_W = \E[W]$.
+\end{theorem}
+
+\begin{proof}
+Define $\bar{W}_{\text{pool}} = \frac{n\bar{W}^{\text{cal}} + m\bar{W}^{\text{test}}}{n+m}$. Under $H_0$:
+
+\textbf{Step 1:} By the CLT:
+\begin{align}
+\sqrt{n}(\bar{W}^{\text{cal}} - \mu_W) &\xrightarrow{d} \mathcal{N}(0, \sigma_W^2) \\
+\sqrt{m}(\bar{W}^{\text{test}} - \mu_W) &\xrightarrow{d} \mathcal{N}(0, \sigma_W^2)
+\end{align}
+
+\textbf{Step 2:} The difference:
+\begin{equation}
+\bar{W}^{\text{test}} - \bar{W}^{\text{cal}} \xrightarrow{d} \mathcal{N}\left(0, \sigma_W^2\left(\frac{1}{n} + \frac{1}{m}\right)\right)
+\end{equation}
+
+\textbf{Step 3:} Apply Slutsky's theorem:
+\begin{equation}
+T_{\text{WR}} - 1 = \frac{\bar{W}^{\text{test}} - \bar{W}^{\text{cal}}}{\bar{W}^{\text{cal}}} \approx \frac{\bar{W}^{\text{test}} - \bar{W}^{\text{cal}}}{\mu_W}
+\end{equation}
+since $\bar{W}^{\text{cal}} \xrightarrow{p} \mu_W$.
+
+\textbf{Step 4:} Therefore:
+\begin{equation}
+\sqrt{\frac{nm}{n+m}}(T_{\text{WR}} - 1) \xrightarrow{d} \mathcal{N}\left(0, \frac{\sigma_W^2}{\mu_W^2}\right)
+\end{equation}
+\end{proof}
+
+\begin{corollary}[Asymptotic Test]
+An asymptotic level-$\beta$ test rejects $H_0$ when:
+\begin{equation}
+|T_{\text{WR}} - 1| > z_{1-\beta/2} \cdot \frac{\wh{\sigma}_W}{\wh{\mu}_W} \cdot \sqrt{\frac{n+m}{nm}}
+\end{equation}
+where $\wh{\mu}_W$ and $\wh{\sigma}_W$ are pooled estimates.
+\end{corollary}
+
+%==============================================================================
+\section{Power Analysis}
+%==============================================================================
+
+\subsection{Local Alternatives}
+
+\begin{assumption}[Local Alternative Sequence]
+\label{ass:local}
+Consider alternatives where the test width distribution has mean:
+\begin{equation}
+\mu_W^{(\cQ)} = \mu_W^{(\cP)} + \frac{\delta}{\sqrt{m}}
+\end{equation}
+for some fixed $\delta > 0$ (shift magnitude).
+\end{assumption}
+
+\begin{theorem}[Power Under Local Alternatives]
+\label{thm:power}
+Under Assumption \ref{ass:local} and regularity conditions, the power of the width-ratio test is:
+\begin{equation}
+\text{Power}(\delta) = \Phi\left(\frac{\delta}{\sigma_W/\mu_W} \cdot \sqrt{\frac{n}{n+m}} - z_{1-\beta/2}\right) + \Phi\left(-\frac{\delta}{\sigma_W/\mu_W} \cdot \sqrt{\frac{n}{n+m}} - z_{1-\beta/2}\right)
+\end{equation}
+For one-sided tests (detecting increases in width):
+\begin{equation}
+\text{Power}(\delta) = 1 - \Phi\left(z_{1-\beta} - \frac{\delta}{\sigma_W/\mu_W} \cdot \sqrt{\frac{n}{n+m}}\right)
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Under the alternative:
+\begin{equation}
+\E[\bar{W}^{\text{test}}] = \mu_W + \frac{\delta}{\sqrt{m}}
+\end{equation}
+
+The test statistic becomes:
+\begin{align}
+\sqrt{\frac{nm}{n+m}}(T_{\text{WR}} - 1) &\approx \sqrt{\frac{nm}{n+m}} \cdot \frac{\bar{W}^{\text{test}} - \bar{W}^{\text{cal}}}{\mu_W} \\
+&\xrightarrow{d} \mathcal{N}\left(\frac{\delta}{\sigma_W/\mu_W} \cdot \sqrt{\frac{n}{n+m}}, 1\right)
+\end{align}
+
+The power follows from the non-central normal distribution.
+\end{proof}
+
+\subsection{Sample Size Determination}
+
+\begin{corollary}[Required Sample Size]
+To detect a shift of magnitude $\Delta_W = \mu_W^{(\cQ)} - \mu_W^{(\cP)}$ with power $1-\gamma$ at level $\beta$:
+\begin{equation}
+m \geq \left(\frac{(z_{1-\beta/2} + z_{1-\gamma}) \cdot \sigma_W/\mu_W}{\Delta_W/\mu_W}\right)^2 \cdot \frac{n+m}{n}
+\end{equation}
+
+For equal calibration and test sizes ($n = m$):
+\begin{equation}
+n = m \geq 2\left(\frac{(z_{1-\beta/2} + z_{1-\gamma}) \cdot \text{CV}_W}{\Delta_W/\mu_W}\right)^2
+\end{equation}
+where $\text{CV}_W = \sigma_W/\mu_W$ is the coefficient of variation of widths.
+\end{corollary}
+
+\begin{example}
+To detect a 20\% increase in mean width ($\Delta_W/\mu_W = 0.2$) with 80\% power at 5\% significance, assuming $\text{CV}_W = 0.5$:
+\begin{equation}
+n = m \geq 2 \cdot \left(\frac{(1.96 + 0.84) \cdot 0.5}{0.2}\right)^2 = 2 \cdot 49 = 98
+\end{equation}
+\end{example}
+
+%==============================================================================
+\section{Permutation Test for Exact Type I Error Control}
+%==============================================================================
+
+\subsection{Motivation}
+
+The asymptotic test requires $n, m \to \infty$ and may not control Type I error in finite samples. Permutation tests provide \textbf{exact} Type I error control for any sample size.
+
+\subsection{Theoretical Foundation}
+
+\begin{theorem}[Exact Type I Error Control]
+\label{thm:permutation}
+Let $\mathcal{S}_{n+m}$ denote all permutations of $\{1, \ldots, n+m\}$. Under $H_0$, the permutation p-value:
+\begin{equation}
+p = \frac{1}{|\mathcal{S}_{n+m}|} \sum_{\pi \in \mathcal{S}_{n+m}} \ind\{T(\pi) \geq T_{\text{obs}}\}
+\end{equation}
+satisfies $\Prob_{H_0}(p \leq \beta) \leq \beta$ for any $\beta \in (0,1)$.
+\end{theorem}
+
+\begin{proof}
+Under $H_0$, the width samples $\{W_1, \ldots, W_{n+m}\}$ are exchangeable (they come from the same distribution). Therefore, conditional on the observed values, all permutations are equally likely.
+
+Let $R = \text{rank}(T_{\text{obs}})$ among $\{T(\pi): \pi \in \mathcal{S}_{n+m}\}$. Under exchangeability:
+\begin{equation}
+\Prob_{H_0}(R \leq k) = \frac{k}{|\mathcal{S}_{n+m}|}
+\end{equation}
+
+The p-value $p = (|\mathcal{S}_{n+m}| - R + 1)/|\mathcal{S}_{n+m}|$ is therefore uniformly distributed on $\{1/|\mathcal{S}_{n+m}|, 2/|\mathcal{S}_{n+m}|, \ldots, 1\}$, guaranteeing:
+\begin{equation}
+\Prob_{H_0}(p \leq \beta) \leq \beta
+\end{equation}
+\end{proof}
+
+\subsection{Monte Carlo Approximation}
+
+\begin{lemma}[Monte Carlo Permutation Test]
+Using $B$ random permutations, the approximate p-value:
+\begin{equation}
+\wh{p} = \frac{1 + \sum_{b=1}^B \ind\{T^{(b)} \geq T_{\text{obs}}\}}{B + 1}
+\end{equation}
+satisfies $\Prob_{H_0}(\wh{p} \leq \beta) \leq \beta$ for any $B \geq 1$.
+\end{lemma}
+
+\begin{proof}
+The ``$+1$'' in numerator and denominator ensures validity. Under $H_0$, $T_{\text{obs}}$ and $T^{(1)}, \ldots, T^{(B)}$ are exchangeable, so the rank of $T_{\text{obs}}$ is uniform on $\{1, \ldots, B+1\}$.
+\end{proof}
+
+%==============================================================================
+\section{Detailed Algorithms}
+%==============================================================================
+
+\subsection{Algorithm 1: General Width-Based Shift Detection}
+
+\begin{algorithm}[H]
+\caption{Width-Based Distribution Shift Detection (General Framework)}
+\label{alg:general}
+\begin{algorithmic}[1]
+\Require
+\Statex $\cD_{\text{train}} = \{(X_i^{\text{tr}}, Y_i^{\text{tr}})\}_{i=1}^{n_{\text{tr}}}$: Training data
+\Statex $\cD_{\text{cal}} = \{(X_i^{\text{cal}}, Y_i^{\text{cal}})\}_{i=1}^{n}$: Calibration data (from $\cP$)
+\Statex $\cD_{\text{test}} = \{X_j^{\text{test}}\}_{j=1}^{m}$: Test covariates (from $\cQ$)
+\Statex $\texttt{IntervalMethod}$: Any prediction interval constructor
+\Statex $\alpha$: Prediction interval confidence level
+\Statex $\beta$: Significance level for shift test
+\Statex $B$: Number of permutations
+\Ensure Shift decision, p-value, diagnostic statistics
+\State
+\State \textcolor{blue}{\texttt{// Phase 1: Train Prediction Interval Model}}
+\State $\texttt{model} \gets \texttt{IntervalMethod.fit}(\cD_{\text{train}}, \alpha)$
+\State
+\State \textcolor{blue}{\texttt{// Phase 2: Compute Calibration Widths}}
+\For{$i = 1, \ldots, n$}
+    \State $[L_i, U_i] \gets \texttt{model.predict\_interval}(X_i^{\text{cal}})$
+    \State $W_i^{\text{cal}} \gets U_i - L_i$
+\EndFor
+\State $\bar{W}^{\text{cal}} \gets \frac{1}{n}\sum_{i=1}^n W_i^{\text{cal}}$
+\State
+\State \textcolor{blue}{\texttt{// Phase 3: Compute Test Widths}}
+\For{$j = 1, \ldots, m$}
+    \State $[L_j, U_j] \gets \texttt{model.predict\_interval}(X_j^{\text{test}})$
+    \State $W_j^{\text{test}} \gets U_j - L_j$
+\EndFor
+\State $\bar{W}^{\text{test}} \gets \frac{1}{m}\sum_{j=1}^m W_j^{\text{test}}$
+\State
+\State \textcolor{blue}{\texttt{// Phase 4: Compute Test Statistic}}
+\State $T_{\text{obs}} \gets \bar{W}^{\text{test}} / \bar{W}^{\text{cal}}$
+\State
+\State \textcolor{blue}{\texttt{// Phase 5: Permutation Test}}
+\State $\texttt{all\_widths} \gets [W_1^{\text{cal}}, \ldots, W_n^{\text{cal}}, W_1^{\text{test}}, \ldots, W_m^{\text{test}}]$
+\State $\texttt{count} \gets 0$
+\For{$b = 1, \ldots, B$}
+    \State $\pi \gets \texttt{random\_permutation}(1, \ldots, n+m)$
+    \State $W^{(b)}_{\text{cal}} \gets \texttt{all\_widths}[\pi[1:n]]$
+    \State $W^{(b)}_{\text{test}} \gets \texttt{all\_widths}[\pi[n+1:n+m]]$
+    \State $T^{(b)} \gets \texttt{mean}(W^{(b)}_{\text{test}}) / \texttt{mean}(W^{(b)}_{\text{cal}})$
+    \If{$T^{(b)} \geq T_{\text{obs}}$}
+        \State $\texttt{count} \gets \texttt{count} + 1$
+    \EndIf
+\EndFor
+\State $p\text{-value} \gets (\texttt{count} + 1) / (B + 1)$
+\State
+\State \textcolor{blue}{\texttt{// Phase 6: Decision and Diagnostics}}
+\State $\texttt{shift\_detected} \gets (p\text{-value} < \beta)$
+\State $\texttt{diagnostics} \gets \{T_{\text{obs}}, \bar{W}^{\text{cal}}, \bar{W}^{\text{test}}, \texttt{std}(W^{\text{cal}}), \texttt{std}(W^{\text{test}})\}$
+\State
+\State \Return $\texttt{shift\_detected}$, $p\text{-value}$, $\texttt{diagnostics}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 2: Quantile Regression Implementation}
+
+\begin{algorithm}[H]
+\caption{Quantile Regression Width-Based Shift Detection}
+\label{alg:qr}
+\begin{algorithmic}[1]
+\Require Training data $\cD_{\text{train}}$, calibration $\cD_{\text{cal}}$, test $\cD_{\text{test}}$, $\alpha$, $\beta$, $B$
+\Ensure Shift decision, p-value
+\State
+\State \textcolor{blue}{\texttt{// Fit Quantile Regression Models}}
+\State $\wh{q}_{\alpha/2} \gets \texttt{QuantileRegression.fit}(\cD_{\text{train}}, \tau = \alpha/2)$
+\State $\wh{q}_{1-\alpha/2} \gets \texttt{QuantileRegression.fit}(\cD_{\text{train}}, \tau = 1-\alpha/2)$
+\State
+\State \textcolor{blue}{\texttt{// Width Function}}
+\Function{Width}{$x$}
+    \State \Return $\wh{q}_{1-\alpha/2}(x) - \wh{q}_{\alpha/2}(x)$
+\EndFunction
+\State
+\State \textcolor{blue}{\texttt{// Compute Widths}}
+\For{$i = 1, \ldots, n$}
+    \State $W_i^{\text{cal}} \gets \texttt{Width}(X_i^{\text{cal}})$
+\EndFor
+\For{$j = 1, \ldots, m$}
+    \State $W_j^{\text{test}} \gets \texttt{Width}(X_j^{\text{test}})$
+\EndFor
+\State
+\State \Return \texttt{PermutationTest}($W^{\text{cal}}$, $W^{\text{test}}$, $\beta$, $B$)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 3: Bootstrap Implementation}
+
+\begin{algorithm}[H]
+\caption{Bootstrap Width-Based Shift Detection}
+\label{alg:bootstrap}
+\begin{algorithmic}[1]
+\Require Training data $\cD_{\text{train}}$, calibration $\cD_{\text{cal}}$, test $\cD_{\text{test}}$, $\alpha$, $\beta$, $B$, $B_{\text{boot}}$
+\Ensure Shift decision, p-value
+\State
+\State \textcolor{blue}{\texttt{// Fit Base Model}}
+\State $\wh{\mu} \gets \texttt{Regressor.fit}(\cD_{\text{train}})$
+\State
+\State \textcolor{blue}{\texttt{// Bootstrap Width Function}}
+\Function{BootstrapWidth}{$x$, $\cD_{\text{train}}$, $B_{\text{boot}}$}
+    \State $\texttt{predictions} \gets []$
+    \For{$b = 1, \ldots, B_{\text{boot}}$}
+        \State $\cD^{(b)} \gets \texttt{bootstrap\_sample}(\cD_{\text{train}})$
+        \State $\wh{\mu}^{(b)} \gets \texttt{Regressor.fit}(\cD^{(b)})$
+        \State $\texttt{predictions.append}(\wh{\mu}^{(b)}(x))$
+    \EndFor
+    \State $L \gets \texttt{quantile}(\texttt{predictions}, \alpha/2)$
+    \State $U \gets \texttt{quantile}(\texttt{predictions}, 1-\alpha/2)$
+    \State \Return $U - L$
+\EndFunction
+\State
+\State \textcolor{blue}{\texttt{// Compute Widths (can be parallelized)}}
+\For{$i = 1, \ldots, n$}
+    \State $W_i^{\text{cal}} \gets \texttt{BootstrapWidth}(X_i^{\text{cal}}, \cD_{\text{train}}, B_{\text{boot}})$
+\EndFor
+\For{$j = 1, \ldots, m$}
+    \State $W_j^{\text{test}} \gets \texttt{BootstrapWidth}(X_j^{\text{test}}, \cD_{\text{train}}, B_{\text{boot}})$
+\EndFor
+\State
+\State \Return \texttt{PermutationTest}($W^{\text{cal}}$, $W^{\text{test}}$, $\beta$, $B$)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 4: Heteroscedastic Model Implementation}
+
+\begin{algorithm}[H]
+\caption{Heteroscedastic Width-Based Shift Detection}
+\label{alg:hetero}
+\begin{algorithmic}[1]
+\Require Training data $\cD_{\text{train}}$, calibration $\cD_{\text{cal}}$, test $\cD_{\text{test}}$, $\alpha$, $\beta$, $B$
+\Ensure Shift decision, p-value
+\State
+\State \textcolor{blue}{\texttt{// Fit Mean and Variance Models}}
+\State $\wh{\mu} \gets \texttt{MeanRegressor.fit}(\cD_{\text{train}})$
+\State $\texttt{residuals} \gets \{(Y_i - \wh{\mu}(X_i))^2\}_{i=1}^{n_{\text{tr}}}$
+\State $\wh{\sigma}^2 \gets \texttt{VarianceRegressor.fit}(\{(X_i, \texttt{residuals}_i)\})$
+\State
+\State \textcolor{blue}{\texttt{// Width Function (Gaussian assumption)}}
+\Function{Width}{$x$}
+    \State \Return $2 \cdot z_{1-\alpha/2} \cdot \sqrt{\wh{\sigma}^2(x)}$
+\EndFunction
+\State
+\State \textcolor{blue}{\texttt{// Compute Widths}}
+\For{$i = 1, \ldots, n$}
+    \State $W_i^{\text{cal}} \gets \texttt{Width}(X_i^{\text{cal}})$
+\EndFor
+\For{$j = 1, \ldots, m$}
+    \State $W_j^{\text{test}} \gets \texttt{Width}(X_j^{\text{test}})$
+\EndFor
+\State
+\State \Return \texttt{PermutationTest}($W^{\text{cal}}$, $W^{\text{test}}$, $\beta$, $B$)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Algorithm 5: Online Sequential Detection}
+
+\begin{algorithm}[H]
+\caption{Online Width-Based Shift Detection}
+\label{alg:online}
+\begin{algorithmic}[1]
+\Require Calibration widths $\{W_i^{\text{cal}}\}_{i=1}^n$, significance $\beta$, window size $k$
+\State
+\State \textcolor{blue}{\texttt{// Initialize}}
+\State $\mu_0 \gets \texttt{mean}(W^{\text{cal}})$
+\State $\sigma_0 \gets \texttt{std}(W^{\text{cal}})$
+\State $\texttt{threshold} \gets z_{1-\beta} \cdot \sigma_0 / \sqrt{k}$
+\State $\texttt{buffer} \gets []$
+\State $t \gets 0$
+\State
+\State \textcolor{blue}{\texttt{// Online Monitoring Loop}}
+\While{receiving new test point $X_{\text{new}}$}
+    \State $t \gets t + 1$
+    \State $W_t \gets \texttt{Width}(X_{\text{new}})$
+    \State $\texttt{buffer.append}(W_t)$
+    \If{$\texttt{len(buffer)} > k$}
+        \State $\texttt{buffer.pop}(0)$ \Comment{Remove oldest}
+    \EndIf
+    \If{$\texttt{len(buffer)} = k$}
+        \State $\bar{W}_t \gets \texttt{mean(buffer)}$
+        \State $Z_t \gets (\bar{W}_t - \mu_0) / (\sigma_0 / \sqrt{k})$
+        \If{$|Z_t| > z_{1-\beta/2}$}
+            \State \textbf{Alert:} Shift detected at time $t$
+            \State \Return $t$, $Z_t$, $\bar{W}_t$
+        \EndIf
+    \EndIf
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{Alternative Test Statistics}
+%==============================================================================
+
+Beyond the width-ratio statistic, we propose several alternatives:
+
+\subsection{Kolmogorov-Smirnov Statistic}
+
+\begin{definition}[KS-Based Width Statistic]
+\begin{equation}
+T_{\text{KS}} = \sup_{w \in \R} \left|\wh{F}_W^{\text{test}}(w) - \wh{F}_W^{\text{cal}}(w)\right|
+\end{equation}
+where $\wh{F}_W^{\text{test}}$ and $\wh{F}_W^{\text{cal}}$ are empirical CDFs.
+\end{definition}
+
+\textbf{Advantage:} Sensitive to any difference in distributions, not just mean shifts.
+
+\subsection{Quantile-Based Statistics}
+
+\begin{definition}[Quantile Ratio Statistic]
+For quantile level $\tau$ (e.g., $\tau = 0.9$):
+\begin{equation}
+T_Q^{(\tau)} = \frac{\wh{q}_\tau^{\text{test}}}{\wh{q}_\tau^{\text{cal}}}
+\end{equation}
+where $\wh{q}_\tau$ is the sample $\tau$-quantile of widths.
+\end{definition}
+
+\textbf{Advantage:} Robust to outliers; focuses on tail behavior.
+
+\subsection{Maximum Statistic}
+
+\begin{definition}[Max Width Ratio]
+\begin{equation}
+T_{\max} = \frac{\max_j W_j^{\text{test}}}{\max_i W_i^{\text{cal}}}
+\end{equation}
+\end{definition}
+
+\textbf{Advantage:} Sensitive to extreme shifts in specific regions.
+
+%==============================================================================
+\section{Comparison: With vs. Without Conformal Inference}
+%==============================================================================
+
+\begin{table}[h]
+\centering
+\caption{Framework Comparison: Conformal vs. General Width-Based Detection}
+\begin{tabular}{p{4cm}p{5cm}p{5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Conformal-Based} & \textbf{General Framework} \\
+\midrule
+Coverage guarantee & Finite-sample, distribution-free & Depends on interval method \\
+Width interpretation & Quantile of nonconformity scores & Method-specific \\
+Computational cost & Single quantile computation & Varies (bootstrap expensive) \\
+Flexibility & Fixed to conformal framework & Any interval method \\
+Shift test validity & Exact via permutation & Exact via permutation \\
+Power & Depends on score function & Depends on interval method \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5,colframe=green!40!black,title=Key Insight]
+The \textbf{shift detection validity} (Type I error control) comes from the permutation test, \textbf{not} from conformal inference. Therefore, the framework works with \textit{any} prediction interval method.
+
+Conformal inference provides additional benefits (coverage guarantees) but is not necessary for valid shift detection.
+\end{tcolorbox}
+
+%==============================================================================
+\section{Theoretical Extensions}
+%==============================================================================
+
+\subsection{Connection to Covariate Shift}
+
+\begin{proposition}[Width Change Under Covariate Shift]
+\label{prop:covariate}
+Assume the prediction interval width $W(x)$ is Lipschitz continuous with constant $L_W$. Under covariate shift from $\cP_X$ to $\cQ_X$:
+\begin{equation}
+|\E_{\cQ_X}[W(X)] - \E_{\cP_X}[W(X)]| \leq L_W \cdot W_1(\cP_X, \cQ_X)
+\end{equation}
+where $W_1$ is the 1-Wasserstein distance.
+\end{proposition}
+
+\begin{proof}
+By the Kantorovich-Rubinstein duality:
+\begin{align}
+|\E_{\cQ_X}[W(X)] - \E_{\cP_X}[W(X)]| &= \left|\int W(x) d(\cQ_X - \cP_X)(x)\right| \\
+&\leq \sup_{\|f\|_{\text{Lip}} \leq 1} \left|\int f(x) d(\cQ_X - \cP_X)(x)\right| \cdot L_W \\
+&= L_W \cdot W_1(\cP_X, \cQ_X)
+\end{align}
+\end{proof}
+
+\subsection{Detectable Shift Characterization}
+
+\begin{theorem}[Minimum Detectable Shift]
+For the width-ratio test with power $1-\gamma$ at level $\beta$, the minimum detectable shift in mean width is:
+\begin{equation}
+\Delta_W^{\min} = \mu_W \cdot (z_{1-\beta/2} + z_{1-\gamma}) \cdot \text{CV}_W \cdot \sqrt{\frac{n+m}{nm}}
+\end{equation}
+where $\text{CV}_W = \sigma_W/\mu_W$ is the coefficient of variation.
+\end{theorem}
+
+\subsection{Multiple Testing for Feature Localization}
+
+To identify \textit{which features} contribute to the detected shift:
+
+\begin{algorithm}[H]
+\caption{Localized Shift Detection with FDR Control}
+\label{alg:localize}
+\begin{algorithmic}[1]
+\Require Detected shift, feature indices $\{1, \ldots, d\}$, FDR level $q$
+\State
+\For{$k = 1, \ldots, d$}
+    \State Compute $W^{(k)}(x) = $ width when feature $k$ is perturbed
+    \State $T_k \gets$ width-ratio statistic for feature $k$
+    \State $p_k \gets$ permutation p-value for $T_k$
+\EndFor
+\State
+\State \textcolor{blue}{\texttt{// Benjamini-Hochberg Procedure}}
+\State Sort p-values: $p_{(1)} \leq p_{(2)} \leq \cdots \leq p_{(d)}$
+\State $k^* \gets \max\{k: p_{(k)} \leq kq/d\}$
+\State
+\State \Return Features with $p_k \leq p_{(k^*)}$
+\end{algorithmic}
+\end{algorithm}
+
+%==============================================================================
+\section{Experimental Design}
+%==============================================================================
+
+\subsection{Simulation Studies}
+
+\textbf{Scenario 1: Covariate Shift}
+\begin{itemize}
+    \item Training: $X \sim \mathcal{N}(0, I_d)$, $Y = X^\top \beta + \epsilon$
+    \item Test: $X \sim \mathcal{N}(\mu, I_d)$ with varying $\|\mu\|$
+\end{itemize}
+
+\textbf{Scenario 2: Heteroscedastic Shift}
+\begin{itemize}
+    \item Training: $Y = f(X) + \sigma_1(X)\epsilon$
+    \item Test: $Y = f(X) + \sigma_2(X)\epsilon$ with $\sigma_2 \neq \sigma_1$
+\end{itemize}
+
+\textbf{Scenario 3: Concept Drift}
+\begin{itemize}
+    \item Training: $Y = f_1(X) + \epsilon$
+    \item Test: $Y = f_2(X) + \epsilon$ with $f_2 \neq f_1$
+\end{itemize}
+
+\subsection{Evaluation Metrics}
+
+\begin{enumerate}
+    \item \textbf{Type I Error:} Rejection rate under $H_0$ (target: $\leq \beta$)
+    \item \textbf{Power:} Rejection rate under $H_1$
+    \item \textbf{AUC:} Area under ROC curve across shift magnitudes
+    \item \textbf{Detection Delay:} Time to detection in online setting
+\end{enumerate}
+
+%==============================================================================
+\section{Conclusion}
+%==============================================================================
+
+We have presented a general framework for distribution shift detection using prediction interval widths. Key contributions:
+
+\begin{enumerate}
+    \item \textbf{Generality:} Framework works with \textit{any} prediction interval method, not just conformal inference
+
+    \item \textbf{Rigorous Theory:}
+    \begin{itemize}
+        \item Exact Type I error control via permutation tests (Theorem \ref{thm:permutation})
+        \item Asymptotic distribution under null (Theorem \ref{thm:asymptotic_null})
+        \item Power analysis under local alternatives (Theorem \ref{thm:power})
+    \end{itemize}
+
+    \item \textbf{Practical Algorithms:} Detailed implementations for quantile regression, bootstrap, and heteroscedastic models
+
+    \item \textbf{Extensions:} Online detection, feature localization with FDR control
+\end{enumerate}
+
+The key insight is that shift detection validity comes from the permutation test structure, making the framework broadly applicable while maintaining rigorous statistical guarantees.
+
+%==============================================================================
+% References
+%==============================================================================
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{99}
+
+\bibitem[Barber et al.(2023)]{barber2023conformal}
+Barber, R.F., Cand\`{e}s, E.J., Ramdas, A., and Tibshirani, R.J. (2023).
+\newblock Conformal prediction beyond exchangeability.
+\newblock \textit{The Annals of Statistics}, 51(2):816--845.
+
+\bibitem[Benjamini and Hochberg(1995)]{benjamini1995controlling}
+Benjamini, Y. and Hochberg, Y. (1995).
+\newblock Controlling the false discovery rate: A practical and powerful approach to multiple testing.
+\newblock \textit{Journal of the Royal Statistical Society: Series B}, 57(1):289--300.
+
+\bibitem[Gibbs and Cand\`{e}s(2021)]{gibbs2021adaptive}
+Gibbs, I. and Cand\`{e}s, E.J. (2021).
+\newblock Adaptive conformal inference under distribution shift.
+\newblock \textit{Advances in Neural Information Processing Systems}, 34.
+
+\bibitem[Good(2005)]{good2005permutation}
+Good, P. (2005).
+\newblock \textit{Permutation, Parametric, and Bootstrap Tests of Hypotheses}.
+\newblock Springer, 3rd edition.
+
+\bibitem[Gretton et al.(2012)]{gretton2012kernel}
+Gretton, A., Borgwardt, K.M., Rasch, M.J., Sch\"{o}lkopf, B., and Smola, A.J. (2012).
+\newblock A kernel two-sample test.
+\newblock \textit{Journal of Machine Learning Research}, 13:723--773.
+
+\bibitem[Koenker(2005)]{koenker2005quantile}
+Koenker, R. (2005).
+\newblock \textit{Quantile Regression}.
+\newblock Cambridge University Press.
+
+\bibitem[Lei et al.(2018)]{lei2018distribution}
+Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R.J., and Wasserman, L. (2018).
+\newblock Distribution-free predictive inference for regression.
+\newblock \textit{Journal of the American Statistical Association}, 113(523):1094--1111.
+
+\bibitem[Lopez-Paz and Oquab(2017)]{lopez2017revisiting}
+Lopez-Paz, D. and Oquab, M. (2017).
+\newblock Revisiting classifier two-sample tests.
+\newblock \textit{International Conference on Learning Representations}.
+
+\bibitem[Romano et al.(2019)]{romano2019conformalized}
+Romano, Y., Patterson, E., and Cand\`{e}s, E.J. (2019).
+\newblock Conformalized quantile regression.
+\newblock \textit{Advances in Neural Information Processing Systems}, 32.
+
+\bibitem[Tibshirani et al.(2019)]{tibshirani2019conformal}
+Tibshirani, R.J., Foygel Barber, R., Cand\`{e}s, E.J., and Ramdas, A. (2019).
+\newblock Conformal prediction under covariate shift.
+\newblock \textit{Advances in Neural Information Processing Systems}, 32.
+
+\bibitem[Vovk et al.(2005)]{vovk2005algorithmic}
+Vovk, V., Gammerman, A., and Shafer, G. (2005).
+\newblock \textit{Algorithmic Learning in a Random World}.
+\newblock Springer.
+
+\end{thebibliography}
+
+\end{document}

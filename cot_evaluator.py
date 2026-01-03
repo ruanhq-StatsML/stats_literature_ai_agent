@@ -784,7 +784,7 @@ def run_evaluation_demo():
         "final_response": "...",
         "hallucination_grade": "grounded",
         "answer_grade": "useful",
-        "iteration_count": 0
+        "iteration_count": 1
     }
 
     # Run evaluation
