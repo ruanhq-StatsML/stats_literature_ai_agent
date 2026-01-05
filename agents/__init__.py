@@ -19,6 +19,16 @@ from .unified_research_agent import (
     create_statistics_research_agent,
     create_interdisciplinary_agent,
 )
+from .alignment_agent import (
+    AlignmentAgent,
+    SimpleAlignmentPipeline,
+    AlignmentDataset,
+    PreferencePair,
+    quick_align_response,
+    generate_preference_dataset,
+    generate_sft_dataset,
+    dpo_loss_reference,
+)
 
 __all__ = [
     "BaseAgent",
@@ -41,4 +51,13 @@ __all__ = [
     "create_psychology_research_agent",
     "create_statistics_research_agent",
     "create_interdisciplinary_agent",
+    # Alignment
+    "AlignmentAgent",
+    "SimpleAlignmentPipeline",
+    "AlignmentDataset",
+    "PreferencePair",
+    "quick_align_response",
+    "generate_preference_dataset",
+    "generate_sft_dataset",
+    "dpo_loss_reference",
 ]
