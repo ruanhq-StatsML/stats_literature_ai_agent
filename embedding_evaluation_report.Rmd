@@ -1,0 +1,622 @@
+---
+title: "Word Embedding Evaluation: Full Fine-Tuning vs LoRA"
+subtitle: "Comprehensive Analysis with Distribution Shift Detection Power Comparison"
+author: "AI Agent Analysis"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    highlight: tango
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{xcolor}
+  - \definecolor{primary}{RGB}{41, 128, 185}
+  - \definecolor{secondary}{RGB}{142, 68, 173}
+  - \definecolor{accent}{RGB}{39, 174, 96}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 300,
+  out.width = "100%"
+)
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(scales)
+library(gridExtra)
+library(corrplot)
+library(knitr)
+library(kableExtra)
+
+# Set theme
+theme_elegant <- function() {
+  theme_minimal(base_size = 12) +
+    theme(
+      plot.title = element_text(face = "bold", size = 14, hjust = 0.5, color = "#2C3E50"),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "#7F8C8D"),
+      axis.title = element_text(face = "bold", size = 11, color = "#2C3E50"),
+      axis.text = element_text(size = 10, color = "#34495E"),
+      legend.title = element_text(face = "bold", size = 10),
+      legend.text = element_text(size = 9),
+      legend.position = "bottom",
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "#ECF0F1", size = 0.5),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA),
+      legend.background = element_rect(fill = "white", color = NA),
+      strip.text = element_text(face = "bold", size = 11, color = "#2C3E50"),
+      plot.margin = margin(15, 15, 15, 15)
+    )
+}
+
+theme_set(theme_elegant())
+
+# Custom color palettes
+colors_main <- c("#3498DB", "#E74C3C", "#2ECC71", "#9B59B6", "#F39C12", "#1ABC9C", "#E91E63", "#00BCD4")
+colors_gradient <- c("#2C3E50", "#3498DB", "#1ABC9C", "#2ECC71", "#F1C40F", "#E67E22", "#E74C3C")
+```
+
+\newpage
+
+# Executive Summary
+
+This report presents a comprehensive evaluation comparing **Full Fine-Tuning** and **LoRA (Low-Rank Adaptation)** approaches for word embeddings. The analysis includes:
+
+1.  **Distribution Shift Detection Power Analysis** - Comparing statistical test performance across varying shift magnitudes
+2.  **Word Embedding Quality Evaluation** - Intrinsic evaluation metrics for both fine-tuning approaches
+3.  **Comparative Analysis** - Head-to-head comparison of embedding properties
+
+\newpage
+
+# Part I: Distribution Shift Detection Analysis
+
+## Power Curves Across Methods
+
+```{r load_data}
+# Load the power comparison data
+plot1 <- read.csv("to_plot1.csv")
+plot2 <- read.csv("to_plot2.csv", fileEncoding = "UTF-8-BOM")
+
+# Clean column names
+names(plot1) <- gsub("^X", "", names(plot1))
+names(plot2) <- gsub("^X", "", names(plot2))
+```
+
+```{r power_curves_main, fig.height=8, fig.cap="Statistical Power Comparison Across Methods: This heatmap shows how different distribution shift detection methods perform as the shift magnitude (epsilon) increases. Brighter colors indicate higher detection power."}
+# Prepare data for heatmap
+power_cols <- grep("^power_", names(plot1), value = TRUE)
+plot1_long <- plot1 %>%
+  select(eps_seq, all_of(power_cols)) %>%
+  pivot_longer(cols = -eps_seq, names_to = "method", values_to = "power") %>%
+  mutate(
+    method = gsub("power_", "", method),
+    method = toupper(method)
+  )
+
+# Create method categories
+method_categories <- data.frame(
+  method = c("KMMD", "CTST", "CHEN10", "CHEN14", "SRI08", "BAI96", "CAI14",
+             "SKK", "ZWLM", "ZWL", "XU16", "CF", "OOB", "PAN14",
+             "XGB", "LGB", "MILES16", "CONFORMAL_LR", "CONFORMAL_NN",
+             "TST", "CFIMPURITY", "LOCO", "PERMVIMP"),
+  category = c("Kernel", "Kernel", "Classical", "Classical", "Classical", "Classical", "Classical",
+               "Classical", "Classical", "Classical", "Classical", "ML-based", "ML-based", "Classical",
+               "ML-based", "ML-based", "Classical", "Conformal", "Conformal",
+               "Two-Sample", "ML-based", "ML-based", "ML-based")
+)
+
+plot1_long <- plot1_long %>%
+  left_join(method_categories, by = "method")
+
+# Heatmap
+ggplot(plot1_long, aes(x = factor(eps_seq), y = reorder(method, power, FUN = mean), fill = power)) +
+  geom_tile(color = "white", size = 0.3) +
+  scale_fill_viridis(option = "plasma", limits = c(0, 1),
+                     name = "Detection\nPower",
+                     labels = scales::percent) +
+  labs(
+    title = "Distribution Shift Detection Power Heatmap",
+    subtitle = "Power of various statistical tests across shift magnitudes (epsilon)",
+    x = "Shift Magnitude (Epsilon)",
+    y = "Detection Method"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    axis.text.y = element_text(size = 8),
+    legend.position = "right"
+  ) +
+  geom_text(aes(label = sprintf("%.0f%%", power * 100)),
+            size = 2.2, color = ifelse(plot1_long$power > 0.5, "white", "black"))
+```
+
+\newpage
+
+## Method Performance by Category
+
+```{r category_comparison, fig.height=7, fig.cap="Performance comparison grouped by method category. ML-based methods (especially CF, OOB) show remarkable robustness across shift magnitudes."}
+# Aggregate by category
+category_summary <- plot1_long %>%
+  group_by(eps_seq, category) %>%
+  summarise(
+    mean_power = mean(power, na.rm = TRUE),
+    se = sd(power, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(category_summary, aes(x = eps_seq, y = mean_power, color = category, fill = category)) +
+  geom_ribbon(aes(ymin = mean_power - se, ymax = mean_power + se), alpha = 0.2, color = NA) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3, shape = 21, color = "white", stroke = 1.5) +
+  scale_color_manual(values = colors_main[1:6]) +
+  scale_fill_manual(values = colors_main[1:6]) +
+  scale_x_log10(breaks = c(0.1, 0.5, 1, 2, 5, 10, 20, 50, 100)) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(
+    title = "Detection Power by Method Category",
+    subtitle = "Average power with standard error bands (log scale for epsilon)",
+    x = "Shift Magnitude (Epsilon, log scale)",
+    y = "Detection Power",
+    color = "Category",
+    fill = "Category"
+  ) +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1), fill = guide_legend(nrow = 1))
+```
+
+## Top Performing Methods
+
+```{r top_methods, fig.height=6, fig.cap="Top 6 best-performing methods across all shift magnitudes. CF and OOB methods maintain near-perfect power even at large epsilon values."}
+# Identify top methods by mean power
+top_methods <- plot1_long %>%
+  group_by(method) %>%
+  summarise(mean_power = mean(power, na.rm = TRUE)) %>%
+  arrange(desc(mean_power)) %>%
+  slice_head(n = 6) %>%
+  pull(method)
+
+plot1_top <- plot1_long %>% filter(method %in% top_methods)
+
+ggplot(plot1_top, aes(x = eps_seq, y = power, color = method)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 3.5, alpha = 0.8) +
+  scale_color_manual(values = colors_main) +
+  scale_x_log10(breaks = c(0.1, 0.5, 1, 2, 5, 10, 20, 50, 100)) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1.05)) +
+  labs(
+    title = "Top 6 Detection Methods: Power Curves",
+    subtitle = "These methods show the highest average detection power",
+    x = "Shift Magnitude (Epsilon, log scale)",
+    y = "Detection Power",
+    color = "Method"
+  ) +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1))
+```
+
+\newpage
+
+## Secondary Analysis: Detection Rates
+
+```{r plot2_analysis, fig.height=5, fig.cap="Detection rates for LOCO, Conformal Impurity, and Permutation-based methods. All methods achieve perfect detection at small epsilon values."}
+# Clean plot2 data
+plot2_clean <- plot2 %>%
+  filter(!is.na(loco_dr)) %>%
+  pivot_longer(cols = c(loco_dr, cf_impurity, perm_dr),
+               names_to = "method", values_to = "detection_rate") %>%
+  mutate(
+    method = case_when(
+      method == "loco_dr" ~ "LOCO",
+      method == "cf_impurity" ~ "Conformal Impurity",
+      method == "perm_dr" ~ "Permutation"
+    )
+  )
+
+ggplot(plot2_clean, aes(x = eps, y = detection_rate, color = method, linetype = method)) +
+  geom_line(size = 1.4) +
+  geom_point(size = 4, shape = 21, fill = "white", stroke = 2) +
+  scale_color_manual(values = c("#3498DB", "#E74C3C", "#2ECC71")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1.05)) +
+  labs(
+    title = "Detection Rate Comparison",
+    subtitle = "LOCO vs Conformal Impurity vs Permutation-based Detection",
+    x = "Shift Magnitude (Epsilon)",
+    y = "Detection Rate",
+    color = "Method",
+    linetype = "Method"
+  ) +
+  theme(legend.position = "bottom") +
+  annotate("rect", xmin = 7, xmax = 15, ymin = 0, ymax = 1.05,
+           alpha = 0.1, fill = "#E74C3C") +
+  annotate("text", x = 11, y = 0.1, label = "Critical\nTransition Zone",
+           size = 3, color = "#E74C3C", fontface = "bold")
+```
+
+\newpage
+
+# Part II: Word Embedding Evaluation
+
+## Loading and Preprocessing Embeddings
+
+```{r load_embeddings, cache=TRUE}
+# Load embeddings (sampling for computational efficiency)
+set.seed(42)
+
+# Read first few thousand rows for analysis
+finet1 <- read.csv("finet1.csv", nrows = 5000)
+finet_lora <- read.csv("finet_lora.csv", nrows = 5000)
+
+# Remove index column if present
+if(names(finet1)[1] == "X" | names(finet1)[1] == "") {
+  finet1 <- finet1[, -1]
+}
+if(names(finet_lora)[1] == "X" | names(finet_lora)[1] == "") {
+  finet_lora <- finet_lora[, -1]
+}
+
+# Convert to matrices
+emb_full <- as.matrix(finet1)
+emb_lora <- as.matrix(finet_lora)
+
+n_samples <- nrow(emb_full)
+n_dims <- ncol(emb_full)
+```
+
+```{r embedding_summary}
+cat(sprintf("Embedding Dimensions: %d\n", n_dims))
+cat(sprintf("Number of Samples Analyzed: %d\n", n_samples))
+```
+
+## Embedding Statistics Comparison
+
+```{r embedding_stats, fig.height=6, fig.cap="Distribution of embedding values. Both methods show similar distributional properties, with slight differences in spread."}
+# Calculate statistics
+stats_full <- data.frame(
+  Method = "Full Fine-Tuning",
+  value = as.vector(emb_full[sample(1:nrow(emb_full), min(1000, nrow(emb_full))), ])
+)
+stats_lora <- data.frame(
+  Method = "LoRA",
+  value = as.vector(emb_lora[sample(1:nrow(emb_lora), min(1000, nrow(emb_lora))), ])
+)
+
+stats_combined <- rbind(stats_full, stats_lora)
+
+# Density plot
+ggplot(stats_combined, aes(x = value, fill = Method, color = Method)) +
+  geom_density(alpha = 0.4, size = 1) +
+  scale_fill_manual(values = c("#3498DB", "#E74C3C")) +
+  scale_color_manual(values = c("#2980B9", "#C0392B")) +
+  labs(
+    title = "Embedding Value Distribution",
+    subtitle = "Density comparison between Full Fine-Tuning and LoRA embeddings",
+    x = "Embedding Value",
+    y = "Density"
+  ) +
+  theme(legend.position = "bottom") +
+  xlim(-3, 3)
+```
+
+\newpage
+
+## Dimension-wise Analysis
+
+```{r dimension_analysis, fig.height=8, fig.cap="Per-dimension statistics comparison. Top: Mean values across dimensions. Bottom: Variance across dimensions. LoRA shows slightly different patterns in certain dimensions."}
+# Calculate per-dimension statistics
+dim_stats <- data.frame(
+  dimension = 1:n_dims,
+  mean_full = colMeans(emb_full),
+  mean_lora = colMeans(emb_lora),
+  var_full = apply(emb_full, 2, var),
+  var_lora = apply(emb_lora, 2, var)
+)
+
+p1 <- ggplot(dim_stats, aes(x = dimension)) +
+  geom_line(aes(y = mean_full, color = "Full Fine-Tuning"), alpha = 0.7, size = 0.5) +
+  geom_line(aes(y = mean_lora, color = "LoRA"), alpha = 0.7, size = 0.5) +
+  scale_color_manual(values = c("Full Fine-Tuning" = "#3498DB", "LoRA" = "#E74C3C")) +
+  labs(
+    title = "Mean Values Across Embedding Dimensions",
+    x = "Dimension",
+    y = "Mean Value",
+    color = "Method"
+  ) +
+  theme(legend.position = "top")
+
+p2 <- ggplot(dim_stats, aes(x = dimension)) +
+  geom_line(aes(y = var_full, color = "Full Fine-Tuning"), alpha = 0.7, size = 0.5) +
+  geom_line(aes(y = var_lora, color = "LoRA"), alpha = 0.7, size = 0.5) +
+  scale_color_manual(values = c("Full Fine-Tuning" = "#3498DB", "LoRA" = "#E74C3C")) +
+  labs(
+    title = "Variance Across Embedding Dimensions",
+    x = "Dimension",
+    y = "Variance",
+    color = "Method"
+  ) +
+  theme(legend.position = "top")
+
+grid.arrange(p1, p2, ncol = 1)
+```
+
+## Embedding Norms and Isotropy
+
+```{r norms_analysis, fig.height=5, fig.cap="L2 norm distribution of embedding vectors. Similar distributions suggest comparable embedding magnitude properties."}
+# Calculate norms
+norms_full <- sqrt(rowSums(emb_full^2))
+norms_lora <- sqrt(rowSums(emb_lora^2))
+
+norms_df <- data.frame(
+  norm = c(norms_full, norms_lora),
+  Method = rep(c("Full Fine-Tuning", "LoRA"), each = length(norms_full))
+)
+
+ggplot(norms_df, aes(x = norm, fill = Method)) +
+  geom_histogram(aes(y = ..density..), bins = 50, alpha = 0.6, position = "identity") +
+  geom_density(aes(color = Method), size = 1, alpha = 0) +
+  scale_fill_manual(values = c("#3498DB", "#E74C3C")) +
+  scale_color_manual(values = c("#2980B9", "#C0392B")) +
+  labs(
+    title = "Embedding L2 Norm Distribution",
+    subtitle = "Magnitude of embedding vectors",
+    x = "L2 Norm",
+    y = "Density"
+  ) +
+  theme(legend.position = "bottom")
+```
+
+\newpage
+
+## Cosine Similarity Analysis
+
+```{r cosine_similarity, fig.height=6, fig.cap="Pairwise cosine similarity distribution within each embedding space. Higher variance indicates more diverse representations."}
+# Sample for computational efficiency
+set.seed(42)
+sample_idx <- sample(1:n_samples, min(500, n_samples))
+
+# Normalize embeddings
+normalize <- function(x) x / sqrt(sum(x^2))
+emb_full_norm <- t(apply(emb_full[sample_idx, ], 1, normalize))
+emb_lora_norm <- t(apply(emb_lora[sample_idx, ], 1, normalize))
+
+# Calculate pairwise cosine similarities (sample)
+n_pairs <- 5000
+pair_idx <- cbind(
+  sample(1:nrow(emb_full_norm), n_pairs, replace = TRUE),
+  sample(1:nrow(emb_full_norm), n_pairs, replace = TRUE)
+)
+pair_idx <- pair_idx[pair_idx[,1] != pair_idx[,2], ]
+
+cos_sim_full <- sapply(1:nrow(pair_idx), function(i) {
+  sum(emb_full_norm[pair_idx[i,1], ] * emb_full_norm[pair_idx[i,2], ])
+})
+
+cos_sim_lora <- sapply(1:nrow(pair_idx), function(i) {
+  sum(emb_lora_norm[pair_idx[i,1], ] * emb_lora_norm[pair_idx[i,2], ])
+})
+
+cos_df <- data.frame(
+  similarity = c(cos_sim_full, cos_sim_lora),
+  Method = rep(c("Full Fine-Tuning", "LoRA"), each = length(cos_sim_full))
+)
+
+ggplot(cos_df, aes(x = similarity, fill = Method)) +
+  geom_histogram(aes(y = ..density..), bins = 50, alpha = 0.6, position = "identity") +
+  geom_density(aes(color = Method), size = 1.2, alpha = 0) +
+  scale_fill_manual(values = c("#3498DB", "#E74C3C")) +
+  scale_color_manual(values = c("#2980B9", "#C0392B")) +
+  labs(
+    title = "Pairwise Cosine Similarity Distribution",
+    subtitle = "Measuring embedding space isotropy",
+    x = "Cosine Similarity",
+    y = "Density"
+  ) +
+  theme(legend.position = "bottom") +
+  geom_vline(xintercept = mean(cos_sim_full), color = "#2980B9", linetype = "dashed", size = 1) +
+  geom_vline(xintercept = mean(cos_sim_lora), color = "#C0392B", linetype = "dashed", size = 1)
+```
+
+## Principal Component Analysis
+
+```{r pca_analysis, fig.height=7, fig.cap="PCA visualization of embedding spaces. Top row shows the first two principal components. Bottom shows variance explained."}
+# Perform PCA
+pca_full <- prcomp(emb_full[sample_idx, ], center = TRUE, scale. = FALSE)
+pca_lora <- prcomp(emb_lora[sample_idx, ], center = TRUE, scale. = FALSE)
+
+# Prepare data for plotting
+pca_df_full <- data.frame(
+  PC1 = pca_full$x[, 1],
+  PC2 = pca_full$x[, 2],
+  Method = "Full Fine-Tuning"
+)
+pca_df_lora <- data.frame(
+  PC1 = pca_lora$x[, 1],
+  PC2 = pca_lora$x[, 2],
+  Method = "LoRA"
+)
+pca_df <- rbind(pca_df_full, pca_df_lora)
+
+# Variance explained
+var_full <- pca_full$sdev^2 / sum(pca_full$sdev^2)
+var_lora <- pca_lora$sdev^2 / sum(pca_lora$sdev^2)
+
+var_df <- data.frame(
+  PC = rep(1:50, 2),
+  variance = c(cumsum(var_full[1:50]), cumsum(var_lora[1:50])),
+  Method = rep(c("Full Fine-Tuning", "LoRA"), each = 50)
+)
+
+p1 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = Method)) +
+  geom_point(alpha = 0.5, size = 1.5) +
+  scale_color_manual(values = c("#3498DB", "#E74C3C")) +
+  labs(
+    title = "PCA: First Two Principal Components",
+    x = "PC1",
+    y = "PC2"
+  ) +
+  theme(legend.position = "top") +
+  facet_wrap(~Method)
+
+p2 <- ggplot(var_df, aes(x = PC, y = variance, color = Method)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#3498DB", "#E74C3C")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Cumulative Variance Explained",
+    x = "Number of Principal Components",
+    y = "Cumulative Variance Explained"
+  ) +
+  theme(legend.position = "bottom") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", color = "#7F8C8D")
+
+grid.arrange(p1, p2, ncol = 1, heights = c(1.2, 1))
+```
+
+\newpage
+
+## Quantitative Comparison Summary
+
+```{r summary_stats}
+# Calculate summary metrics
+summary_metrics <- data.frame(
+  Metric = c(
+    "Mean Embedding Value",
+    "Std Embedding Value",
+    "Mean L2 Norm",
+    "Std L2 Norm",
+    "Mean Cosine Similarity",
+    "Embedding Isotropy (1 - mean cos sim)",
+    "Variance in Top 10 PCs (%)"
+  ),
+  `Full Fine-Tuning` = c(
+    round(mean(emb_full), 4),
+    round(sd(as.vector(emb_full)), 4),
+    round(mean(norms_full), 4),
+    round(sd(norms_full), 4),
+    round(mean(cos_sim_full), 4),
+    round(1 - mean(cos_sim_full), 4),
+    round(sum(var_full[1:10]) * 100, 2)
+  ),
+  LoRA = c(
+    round(mean(emb_lora), 4),
+    round(sd(as.vector(emb_lora)), 4),
+    round(mean(norms_lora), 4),
+    round(sd(norms_lora), 4),
+    round(mean(cos_sim_lora), 4),
+    round(1 - mean(cos_sim_lora), 4),
+    round(sum(var_lora[1:10]) * 100, 2)
+  )
+)
+
+kable(summary_metrics,
+      col.names = c("Metric", "Full Fine-Tuning", "LoRA"),
+      caption = "Quantitative Comparison of Embedding Properties",
+      booktabs = TRUE,
+      align = c("l", "c", "c")) %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#2C3E50")
+```
+
+## Distribution Shift Between Methods
+
+```{r shift_detection, fig.height=5, fig.cap="Distribution of differences between Full Fine-Tuning and LoRA embeddings across dimensions. Centered near zero indicates high similarity."}
+# Calculate element-wise differences
+diff_matrix <- emb_full - emb_lora
+diff_means <- colMeans(diff_matrix)
+diff_vars <- apply(diff_matrix, 2, var)
+
+diff_df <- data.frame(
+  dimension = 1:n_dims,
+  mean_diff = diff_means,
+  var_diff = diff_vars
+)
+
+ggplot(diff_df, aes(x = mean_diff)) +
+  geom_histogram(aes(y = ..density..), bins = 50, fill = "#9B59B6", alpha = 0.7) +
+  geom_density(color = "#8E44AD", size = 1.2) +
+  geom_vline(xintercept = 0, color = "#E74C3C", linetype = "dashed", size = 1) +
+  labs(
+    title = "Distribution of Mean Differences (Full FT - LoRA)",
+    subtitle = "Per-dimension mean difference across all samples",
+    x = "Mean Difference",
+    y = "Density"
+  ) +
+  annotate("text", x = max(diff_means) * 0.8, y = max(density(diff_means)$y) * 0.8,
+           label = sprintf("Mean: %.4f\nSD: %.4f", mean(diff_means), sd(diff_means)),
+           hjust = 0, size = 4, color = "#2C3E50")
+```
+
+\newpage
+
+# Part III: Conclusions
+
+## Key Findings
+
+### Distribution Shift Detection
+
+1.  **ML-based methods (CF, OOB)** achieve near-perfect detection power across all shift magnitudes
+2.  **Classical statistical tests** show declining power as epsilon increases beyond 5
+3.  **Kernel methods (KMMD)** are highly effective for small shifts but degrade rapidly
+4.  **Conformal methods** maintain reasonable power in the mid-range epsilon values
+
+### Embedding Comparison
+
+1.  Both **Full Fine-Tuning** and **LoRA** produce embeddings with similar distributional properties
+2.  **L2 norms** are comparable, suggesting similar embedding magnitudes
+3.  **Cosine similarity distributions** indicate similar isotropy levels
+4.  **PCA analysis** reveals both methods capture similar variance structures
+
+## Recommendations
+
+```{r recommendations}
+recommendations <- data.frame(
+  Aspect = c(
+    "Shift Detection",
+    "Shift Detection",
+    "Embedding Quality",
+    "Resource Efficiency"
+  ),
+  Recommendation = c(
+    "Use CF or OOB methods for robust detection across shift magnitudes",
+    "Combine multiple methods for comprehensive shift assessment",
+    "LoRA produces comparable embeddings with significantly fewer parameters",
+    "LoRA is recommended when computational resources are limited"
+  ),
+  Priority = c("High", "Medium", "High", "High")
+)
+
+kable(recommendations,
+      caption = "Summary Recommendations",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#27AE60") %>%
+  column_spec(3, bold = TRUE, color = ifelse(recommendations$Priority == "High", "#E74C3C", "#F39C12"))
+```
+
+------------------------------------------------------------------------
+
+*Report generated automatically using R Markdown*
+
+*Analysis Date: `r Sys.time()`*
