@@ -49,6 +49,9 @@ python main.py                    # Default mode
 python main.py --mode langgraph   # Explicit
 ```
 
+**Justfiability:**
+- We justified that the is faster than the chain-of-prompt for landing the research idea in production.
+
 **Features:**
 - Smart routing to appropriate domain expert(s)
 - Cross-domain synthesis for interdisciplinary queries
